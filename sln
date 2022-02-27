@@ -1,0 +1,159 @@
+#!/bin/sh
+
+d_path="/usr/local/share/sln"
+b_path="/usr/local/bin"
+
+err() {
+	echo "$1"
+	exit 1;
+}
+
+# create new symlink group
+l_group() {
+	[ -d "$d_path" ] || mkdir -p "$d_path" || err "Could not create database directory $d_path"
+	mkdir "$d_path/$1" || err "Could not create group $1"
+}
+
+# add link to group
+l_add() {
+	[ -d "$d_path/$1" ] || err "No such group $1"
+	[ -f "$3" ] || err "Cannot link to path $3: does not exist"
+	ln -s "$3" "$d_path/$1/$2" || err "Could not create link name $2"
+}
+
+# set main group link
+l_set() {
+	[ -d "$d_path/$1" ] || err "No such group $1"
+	[ -L "$d_path/$1/$2" ] || err "No such link name $2"
+	ln -s "$d_path/$1/$2" "$b_path/$1" || err "Could not set link for $2 of group $1"
+}
+
+# delete main group link
+l_unset() {
+	[ -d "$d_path/$1" ] || err "No such group $1"
+	[ -L "$b_path/$1" ] || err "Group $1 does not have a link set"
+	rm "$b_path/$1" || err "Could not unset link for $1"
+}
+
+# delete entire group
+l_ungroup() {
+	[ -d "$d_path/$1" ] || err "Group $1 does not exist"
+	rm -rf "$d_path/$1" || err "Could not ungroup $1"
+}
+
+# remove link from group
+l_del() {
+	[ -d "$d_path/$1" ] || err "No such group $1"
+	[ -L "$d_path/$1/$2" ] || err "Group $1 does not have a link with name $2"
+	rm "$d_path/$1/$2" || err "Could not delete link $2 from group $1"
+}
+
+l_list() {
+	[ -e "$d_path" ] || err "Database directory does not exist"
+	if [ -z "$1" ]; then
+		echo "Groups:"
+		for g in "$d_path"/*; do
+			echo "${g##*/}"
+		done
+	else
+		echo "Links in group $1:"
+		for l in "$d_path/$1"/*; do
+			echo "${l##*/} -> $(readlink -f "$l")"
+		done
+	fi
+}
+
+help() {
+	echo "sln [FLAG] [OPTION] [ARG]..."
+	echo
+	echo "Options:"
+	echo "  add GROUP LINK PATH      Create a link in GROUP with name LINK to path PATH"
+	echo "  del GROUP LINNK          Delete group GROUP's link of name LINK"
+	echo "  group GROUP              Create group with name GROUP"
+	echo "  list [GROUP]             List all groups or list links in GROUP if specified"
+	echo "  set GROUP LINK           Set the default link of GROUP to LINK"
+	echo "  ungroup GROUP            Remove GROUP entirely (and its links)"
+	echo "  unset GROUP              Unset the default link of GROUP"
+	echo
+	echo "Flags:"
+	echo "  --path=PATH              Change the sln path from '$b_path' to PATH"
+	echo "  --dbdir=PATH             Change the sln database directory from '$d_path' to PATH"
+	echo
+	echo "Example:"
+	echo 'To create a new group titled "lua" with a link titled "lua53"'
+	echo 'which links to the path of the "lua53" executable:'
+	echo '  $ sln group lua'
+	echo '  $ sln add lua lua53 $(which lua53)'
+	echo '  $ sln set lua lua53'
+}
+
+[ $# -eq 0 ] && { help; exit 0; }
+
+while [ $# -gt 0 ]; do
+	case "$1" in
+		-h|--help|help)
+			help
+			exit 0
+			;;
+		add)
+			[ $# -ge 4 ] || err "add <GROUP> <LINK_NAME> <LINK_PATH>"
+			l_add "$2" "$3" "$4"
+			shift 3
+			;;
+		del)
+			[ $# -ge 3 ] || err "del <GROUP> <LINK_NAME>"
+			l_del "$2" "$3"
+			shift 2
+			;;
+		group)
+			[ $# -ge 2 ] || err "group <GROUP>"
+			l_group "$2"
+			shift
+			;;
+		list)
+			if [ -z "$2" ]; then
+				l_list
+			else
+				l_list "$2"
+				shift
+			fi
+			;;
+		set)
+			[ $# -ge 3 ] || err "set <GROUP> <LINK_NAME>"
+			l_set "$2" "$3"
+			shift 2
+			;;
+		ungroup)
+			[ $# -ge 2 ] || err "ungroup <GROUP>"
+			l_ungroup "$2"
+			shift 1
+			;;
+		unset)
+			[ $# -ge 2 ] || err "unset <GROUP>"
+			l_unset "$2"
+			shift 1
+			;;
+		--path=*)
+			b_path="${1#*=}"
+			[ -e "$b_path" ] || err "Path $b_path does not exist"
+			;;
+		--path)
+			b_path="$2"
+			[ -e "$b_path" ] || err "Path $b_path does not exist"
+			shift
+			;;
+		--dbdir=*)
+			d_path="${1#*=}"
+			[ -e "$d_path" ] || err "Path $d_path does not exist"
+			;;
+		--dbdir)
+			d_path="$2"
+			[ -e "$d_path" ] || err "Path $d_path does not exist"
+			shift
+			;;
+		*)
+			err "Unrecognized option ($1)"
+			;;
+	esac
+	shift
+done
