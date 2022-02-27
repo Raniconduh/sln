@@ -5,7 +5,7 @@ b_path="/usr/local/bin"
 
 err() {
 	echo "$1"
-	exit 1;
+	exit 1
 }
 
 # create new symlink group
@@ -38,7 +38,7 @@ l_unset() {
 # delete entire group
 l_ungroup() {
 	[ -d "$d_path/$1" ] || err "Group $1 does not exist"
-	rm -rf "$d_path/$1" || err "Could not ungroup $1"
+	rm -rf "${d_path:?}/$1" || err "Could not ungroup $1"
 }
 
 # remove link from group
