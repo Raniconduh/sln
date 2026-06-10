@@ -25,6 +25,13 @@ l_add() {
 l_set() {
 	[ -d "$d_path/$1" ] || err "No such group $1"
 	[ -L "$d_path/$1/$2" ] || err "No such link name $2"
+	if [ -e "$b_path/$1" ]; then
+		if [ ! -L "$b_path/$1" ]; then
+			err "Link destination for group $1 is already taken"
+		else
+			l_unset "$1"
+		fi
+	fi
 	ln -s "$d_path/$1/$2" "$b_path/$1" || err "Could not set link for $2 of group $1"
 }
 
@@ -32,6 +39,10 @@ l_set() {
 l_unset() {
 	[ -d "$d_path/$1" ] || err "No such group $1"
 	[ -L "$b_path/$1" ] || err "Group $1 does not have a link set"
+	case "$(readlink "$b_path/$1")" in
+		"$d_path"/*) ;;
+		*) err "Link for group $1 is set by a different program" ;;
+	esac
 	rm "$b_path/$1" || err "Could not unset link for $1"
 }
 
